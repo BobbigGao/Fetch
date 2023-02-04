@@ -1,0 +1,92 @@
+---
+title: "Fetch"
+author: "Yuteng Gao"
+date: "2023-02-04"
+output: html_document
+---
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(readr)
+library(sqldf)
+library(dplyr)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+users <- read_csv("https://github.com/BobbigGao/Fetch/releases/download/Dataset/users.csv")
+receipts <- read_csv("https://github.com/BobbigGao/Fetch/releases/download/Dataset/receipts.csv")
+receipt_items <- read_csv("https://github.com/BobbigGao/Fetch/releases/download/Dataset/receipt_items.csv")
+brands <- read_csv("https://github.com/BobbigGao/Fetch/releases/download/Dataset/brands.csv")
+```
+
+# What is the name of the most expensive item purchased?
+
+```{r}
+# create a new column called unit price in receipt_items
+receipt_items <- sqldf(
+  "
+  SELECT *,
+  `TOTAL_FINAL_PRICE` / `QUANTITY_PURCHASED` AS `UNIT_PRICE`
+  FROM receipt_items
+  "
+)
+
+# find the name of the most expensive item
+name <- sqldf(
+"
+SELECT `Description` 
+FROM receipt_items
+WHERE `UNIT_PRICE` = (SELECT MAX(`UNIT_PRICE`) FROM receipt_items)
+LIMIT 1
+")
+
+print(name)
+```
+
+The name of the most expensive item purchased is Starbucks Iced Coffee Premium Coffee Beverage Unsweetened Blonde Roast Bottle 48 Oz 1 Ct. However, it is clear that a starbucks coffee can not be that expensice and this receipt is rejected by fetch review. The actual most expensive item should be rewarded the points (i.e. "POINTS_EARNED" in receipt_items is not N/A) and the record should also pass the fetch review.
+
+```{r}
+cleaned_receipt_items <- receipt_items[!is.na(receipt_items$POINTS_EARNED),]
+cleaned_receipts <- receipts[!is.na(receipts$FINISHED_DATE),]
+```
+
+Then using the cleaned dataset, we find the most expensive item that passed fetch review is an universal unknown item. 
+
+# What user bought the most expensive item?
+
+```{r}
+# find the receipt ID of the most expensive item
+most_exp_receipt_id <- sqldf(
+"
+SELECT `REWARDS_RECEIPT_ID` 
+FROM receipt_items
+WHERE `UNIT_PRICE` = (SELECT MAX(`UNIT_PRICE`) FROM receipt_items)
+LIMIT 1
+")
+
+most_exp_receipt_id <- "6140bb490a720f971f01b2d0"
+
+# find the user ID of this receipt
+
+
+most_exp_user_id <- sqldf(sprintf("
+SELECT `USER_ID` 
+FROM receipts
+WHERE `ID` = '%s'
+LIMIT 1
+", most_exp_receipt_id))
+
+print(most_exp_user_id)
+```
+
+The user who purchased the most expensive item has the user ID: 609ab37f7a2e8f2f95ae968f. This user is the user who purchased the universal unknown item.
+
+
+```{r}
+cleaned_receipts <- receipts[!is.na(receipts$STORE_NAME),]
+brand_counts <- cleaned_receipts %>%
+  group_by(STORE_NAME) %>%
+  summarize(count = n())
+```
+
+
+
